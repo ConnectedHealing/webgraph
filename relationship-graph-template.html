@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case File — Relationship Explorer</title>
+<style>
+  :root{
+    --board:#1b2430;
+    --board-deep:#131b24;
+    --paper:#f2ead9;
+    --paper-dim:#cfc6b0;
+    --ink:#20262c;
+    --string:#b8452f;
+    --string-dim:#7a3225;
+    --gold:#c9a227;
+    --teal:#4f8a86;
+    --violet:#8c6fae;
+    --line:rgba(242,234,217,0.14);
+    --text:#eae6da;
+    --text-dim:#a9a496;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --mono: "SF Mono", "Menlo", "Consolas", monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:
+      radial-gradient(1200px 800px at 15% -10%, rgba(76,96,120,0.25), transparent 60%),
+      var(--board);
+    color:var(--text);
+    font-family:var(--sans);
+    overflow:hidden;
+  }
+  #app{ display:flex; flex-direction:column; height:100vh; }
+
+  /* ---- Header ---- */
+  header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    gap:12px; padding:14px 16px 10px;
+    border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  header h1{
+    font-family:var(--serif); font-weight:400; font-size:1.25rem;
+    margin:0; letter-spacing:0.01em; color:var(--paper);
+  }
+  header h1 em{ color:var(--string); font-style:normal; }
+  #stats{
+    font-family:var(--mono); font-size:0.72rem; color:var(--text-dim);
+    display:flex; gap:14px;
+  }
+  #stats b{ color:var(--paper); font-weight:600; }
+
+  /* ---- Toolbar ---- */
+  #toolbar{
+    display:flex; gap:8px; padding:10px 16px; align-items:center;
+    border-bottom:1px solid var(--line); flex-wrap:wrap;
+  }
+  #search{
+    flex:1 1 180px; min-width:120px;
+    background:rgba(0,0,0,0.25); border:1px solid var(--line); border-radius:3px;
+    color:var(--text); padding:7px 10px; font-family:var(--sans); font-size:0.85rem;
+  }
+  #search::placeholder{ color:var(--text-dim); }
+  .btn{
+    background:transparent; border:1px solid var(--line); color:var(--text-dim);
+    padding:7px 12px; border-radius:3px; font-size:0.78rem; cursor:pointer;
+    font-family:var(--sans); white-space:nowrap;
+  }
+  .btn:hover{ border-color:var(--paper-dim); color:var(--paper); }
+  .btn.active{ border-color:var(--gold); color:var(--gold); }
+
+  /* ---- Layout ---- */
+  #main{ flex:1; display:flex; min-height:0; position:relative; }
+  #graph-wrap{ flex:1; position:relative; min-width:0; }
+  svg{ width:100%; height:100%; display:block; cursor:grab; }
+  svg:active{ cursor:grabbing; }
+
+  .link{ stroke:var(--string-dim); stroke-opacity:0.55; }
+  .link.dimmed{ stroke-opacity:0.05; }
+  .link.lit{ stroke:var(--string); stroke-opacity:0.95; }
+
+  .node-shape{ stroke:var(--board-deep); stroke-width:1.3px; cursor:pointer; }
+  .node.dimmed .node-shape{ opacity:0.12; }
+  .node.selected .node-shape{ stroke:var(--gold); stroke-width:2.5px; }
+  .node-label{
+    font-family:var(--sans); font-size:9.5px; fill:var(--text-dim);
+    pointer-events:none; paint-order:stroke; stroke:var(--board); stroke-width:3px;
+  }
+  .node.dimmed .node-label{ opacity:0.08; }
+  .node.selected .node-label{ fill:var(--paper); font-weight:600; }
+
+  /* ---- Filter drawer (left) ---- */
+  #filters{
+    width:260px; flex:none; border-right:1px solid var(--line);
+    padding:14px; overflow-y:auto; background:rgba(0,0,0,0.15);
+  }
+  #filters h2{
+    font-family:var(--mono); font-size:0.68rem; letter-spacing:0.06em;
+    color:var(--text-dim); margin:18px 0 8px; text-transform:lowercase;
+  }
+  #filters h2:first-child{ margin-top:0; }
+  .type-row{ display:flex; align-items:center; gap:7px; font-size:0.82rem; padding:3px 0; cursor:pointer; }
+  .type-row input{ accent-color:var(--gold); }
+  .swatch{ width:9px; height:9px; border-radius:2px; flex:none; }
+  .tag-chip{
+    display:inline-block; margin:2px 4px 2px 0; padding:3px 8px;
+    border:1px solid var(--line); border-radius:20px; font-size:0.72rem;
+    color:var(--text-dim); cursor:pointer;
+  }
+  .tag-chip.on{ border-color:var(--teal); color:var(--teal); background:rgba(79,138,134,0.12); }
+  .range-labels{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:0.68rem; color:var(--text-dim); margin-top:2px; }
+  input[type=range]{ width:100%; accent-color:var(--string); }
+
+  /* ---- Detail / timeline panel (right) ---- */
+  #detail{
+    width:320px; flex:none; border-left:1px solid var(--line);
+    padding:16px; overflow-y:auto; background:rgba(0,0,0,0.15);
+    display:none;
+  }
+  #detail.open{ display:block; }
+  #detail .close{ float:right; cursor:pointer; color:var(--text-dim); font-size:1rem; }
+  #detail h3{ font-family:var(--serif); font-size:1.05rem; margin:0 0 2px; color:var(--paper); }
+  #detail .role{ font-family:var(--mono); font-size:0.7rem; color:var(--text-dim); margin-bottom:14px; }
+  .tl-item{
+    border-left:2px solid var(--string-dim); padding:6px 0 6px 12px; margin-bottom:2px;
+    cursor:pointer; position:relative;
+  }
+  .tl-item:hover{ border-left-color:var(--string); }
+  .tl-item:hover .tl-verb{ color:var(--paper); }
+  .tl-date{ font-family:var(--mono); font-size:0.66rem; color:var(--text-dim); }
+  .tl-verb{ font-size:0.82rem; color:var(--text); margin:2px 0; }
+  .tl-verb b{ color:var(--gold); font-weight:600; }
+  .tl-tags{ font-size:0.66rem; color:var(--teal); }
+
+  /* ---- Empty state ---- */
+  #empty-hint{
+    position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+    font-family:var(--mono); font-size:0.72rem; color:var(--text-dim);
+    background:rgba(0,0,0,0.35); padding:6px 12px; border-radius:20px;
+    border:1px solid var(--line); pointer-events:none;
+  }
+
+  /* ---- Modal ---- */
+  #modal-overlay{
+    position:fixed; inset:0; background:rgba(10,13,17,0.72); display:none;
+    align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  #modal-overlay.open{ display:flex; }
+  #modal{
+    background:var(--paper); color:var(--ink); max-width:560px; width:100%;
+    max-height:80vh; overflow-y:auto; border-radius:2px; padding:22px 24px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  #modal .close{ float:right; cursor:pointer; font-size:1.1rem; color:#8a8270; }
+  #modal .doc-id{ font-family:var(--mono); font-size:0.7rem; color:#8a8270; }
+  #modal h3{ font-family:var(--serif); margin:4px 0 2px; }
+  #modal .doc-date{ font-family:var(--mono); font-size:0.72rem; color:#8a8270; margin-bottom:12px; }
+  #modal .excerpt{
+    font-family:var(--serif); font-size:0.95rem; line-height:1.55; white-space:pre-wrap;
+    border-top:1px solid #ddd3ba; border-bottom:1px solid #ddd3ba; padding:14px 0; margin-bottom:10px;
+  }
+  #modal .excerpt mark{ background:#e7c96b; padding:0 2px; }
+  #modal a.src-link{ font-size:0.78rem; color:var(--string-dim); }
+
+  /* ---- Mobile ---- */
+  #filters-toggle, #close-detail-mobile{ display:none; }
+  @media (max-width: 820px){
+    #filters{
+      position:absolute; z-index:20; top:0; bottom:0; left:0;
+      transform:translateX(-100%); transition:transform .2s ease; width:78vw; max-width:300px;
+    }
+    #filters.open{ transform:translateX(0); box-shadow:12px 0 30px rgba(0,0,0,0.4); }
+    #detail{
+      position:absolute; z-index:20; top:0; bottom:0; right:0; width:82vw; max-width:340px;
+    }
+    #filters-toggle{ display:inline-block; }
+    header h1{ font-size:1.05rem; }
+    #stats{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1>The Meridian File <em>— relationship explorer</em></h1>
+    <div id="stats">
+      <span><b id="stat-nodes">0</b> entities</span>
+      <span><b id="stat-links">0</b> relationships</span>
+      <span><b id="stat-docs">0</b> sources</span>
+    </div>
+  </header>
+
+  <div id="toolbar">
+    <button class="btn" id="filters-toggle">☰ Filters</button>
+    <input id="search" type="text" placeholder="Search entities…" autocomplete="off">
+    <button class="btn" id="reset-btn">Reset view</button>
+  </div>
+
+  <div id="main">
+    <aside id="filters">
+      <h2>Entity types</h2>
+      <div id="type-filters"></div>
+
+      <h2>Date range</h2>
+      <input type="range" id="range-min">
+      <input type="range" id="range-max">
+      <div class="range-labels"><span id="range-min-label"></span><span id="range-max-label"></span></div>
+
+      <h2>Tags</h2>
+      <div id="tag-filters"></div>
+    </aside>
+
+    <div id="graph-wrap">
+      <svg id="graph"></svg>
+      <div id="empty-hint">Click an entity to trace its timeline · drag to rearrange · scroll to zoom</div>
+    </div>
+
+    <aside id="detail">
+      <span class="close" id="detail-close">✕</span>
+      <h3 id="detail-name"></h3>
+      <div class="role" id="detail-role"></div>
+      <div id="detail-timeline"></div>
+    </aside>
+  </div>
+
+</div>
+
+<div id="modal-overlay">
+  <div id="modal">
+    <span class="close" id="modal-close">✕</span>
+    <div class="doc-id" id="modal-docid"></div>
+    <h3 id="modal-title"></h3>
+    <div class="doc-date" id="modal-date"></div>
+    <div class="excerpt" id="modal-excerpt"></div>
+    <a class="src-link" id="modal-src" href="#" target="_blank" rel="noopener">View full source document ↗</a>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+/* =========================================================================
+   DATA MODEL — replace the sample data below with your own.
+
+   NODES  { id, label, type, note }
+     - id:    unique string, referenced by links as source/target
+     - label: display name
+     - type:  a category string you define (colors/shapes are assigned
+              automatically to whatever distinct types you use)
+     - note:  short one-line description shown in the side panel (optional)
+
+   LINKS  { source, target, verb, date, tags, docId, docTitle, docDate,
+             excerpt, sourceUrl }
+     - source/target: node ids
+     - verb:    short description of the relationship/action
+                ("met with", "wired funds to", "flew with")
+     - date:    "YYYY-MM-DD" (or "YYYY-MM" / "YYYY") — drives the timeline
+                and the date-range filter
+     - tags:    array of strings, drives the tag filter
+     - docId, docTitle, docDate: identifies the source document
+     - excerpt: the passage that supports this relationship (shown in the
+                modal so a reader can verify it in context)
+     - sourceUrl: optional link to the original document
+
+   Swap SAMPLE_NODES / SAMPLE_LINKS for arrays loaded from your own JSON,
+   a CSV you parse with d3.csv(), or a small API — the rest of the file
+   doesn't need to change.
+   ========================================================================= */
+
+const SAMPLE_NODES = [
+  { id:"a-reyes",     label:"A. Reyes",           type:"person",       note:"Former CFO, Meridian Holdings" },
+  { id:"j-park",      label:"J. Park",            type:"person",       note:"Outside counsel, Park & Weiss" },
+  { id:"m-holdings",  label:"Meridian Holdings",  type:"organization", note:"Parent investment vehicle" },
+  { id:"s-dunmore",   label:"S. Dunmore",         type:"person",       note:"Board member, Meridian Holdings" },
+  { id:"t-vance",     label:"T. Vance",           type:"person",       note:"Auditor, Halworth & Cole" },
+  { id:"halworth",    label:"Halworth & Cole",    type:"organization", note:"External audit firm" },
+  { id:"c-ibarra",    label:"C. Ibarra",          type:"person",       note:"Logistics contact" },
+  { id:"r-nakash",    label:"R. Nakashima",       type:"person",       note:"Real-estate broker" },
+  { id:"villa-azure", label:"Villa Azure Trust",  type:"organization", note:"Offshore property trust" },
+  { id:"e-solberg",   label:"E. Solberg",         type:"person",       note:"Wire-transfer signatory" },
+  { id:"caymanbank",  label:"Coral Bank & Trust", type:"organization", note:"Correspondent bank, Cayman branch" },
+  { id:"d-forsythe",  label:"D. Forsythe",        type:"person",       note:"Meridian general counsel" },
+  { id:"lakehouse",   label:"Lakehouse Retreat",  type:"place",        note:"Recurring meeting location, 2019–2021" },
+  { id:"n-castellan", label:"N. Castellano",      type:"person",       note:"Travel coordinator" },
+  { id:"j-fenwick",   label:"J. Fenwick",         type:"person",       note:"Journalist, first FOIA request" }
+];
+
+const SAMPLE_LINKS = [
+  { source:"a-reyes",   target:"m-holdings",  verb:"served as CFO of",         date:"2018-03-01", tags:["corporate","finance"], docId:"DOC-0114", docTitle:"Meridian Holdings — Officer Filing", docDate:"2018-03-01", excerpt:"…A. Reyes is appointed Chief Financial Officer of Meridian Holdings effective March 1, 2018, reporting directly to the board.", sourceUrl:"#" },
+  { source:"a-reyes",   target:"j-park",      verb:"retained as counsel",      date:"2019-06-14", tags:["legal"], docId:"DOC-0201", docTitle:"Engagement Letter", docDate:"2019-06-14", excerpt:"…Park & Weiss LLP is retained to advise A. Reyes on matters relating to the pending Coral Bank & Trust inquiry.", sourceUrl:"#" },
+  { source:"s-dunmore", target:"m-holdings",  verb:"joined board of",          date:"2017-11-02", tags:["corporate"], docId:"DOC-0033", docTitle:"Board Resolution 17-09", docDate:"2017-11-02", excerpt:"…the Board unanimously approves the appointment of S. Dunmore as an independent director.", sourceUrl:"#" },
+  { source:"t-vance",   target:"halworth",    verb:"employed by",              date:"2015-01-01", tags:["finance"], docId:"DOC-0002", docTitle:"Halworth & Cole Staff Directory", docDate:"2015-01-01", excerpt:"…T. Vance, Senior Audit Manager, assigned to institutional accounts including Meridian Holdings.", sourceUrl:"#" },
+  { source:"t-vance",   target:"m-holdings",  verb:"conducted audit of",       date:"2020-04-22", tags:["finance","audit"], docId:"DOC-0245", docTitle:"Annual Audit Memo", docDate:"2020-04-22", excerpt:"…fieldwork identified three unreconciled wire transfers routed through Coral Bank & Trust during Q3 2019.", sourceUrl:"#" },
+  { source:"c-ibarra",  target:"lakehouse",   verb:"arranged logistics for",   date:"2019-08-09", tags:["travel"], docId:"DOC-0177", docTitle:"Email: Weekend Arrangements", docDate:"2019-08-09", excerpt:"…confirming catering and dock access for the group arriving Friday evening at Lakehouse Retreat.", sourceUrl:"#" },
+  { source:"a-reyes",   target:"lakehouse",   verb:"attended meeting at",      date:"2019-08-10", tags:["travel","meeting"], docId:"DOC-0178", docTitle:"Calendar Export", docDate:"2019-08-10", excerpt:"…9:00 AM — Strategy session, Lakehouse Retreat, attendees: A. Reyes, S. Dunmore, D. Forsythe.", sourceUrl:"#" },
+  { source:"s-dunmore", target:"lakehouse",   verb:"attended meeting at",      date:"2019-08-10", tags:["travel","meeting"], docId:"DOC-0178", docTitle:"Calendar Export", docDate:"2019-08-10", excerpt:"…9:00 AM — Strategy session, Lakehouse Retreat, attendees: A. Reyes, S. Dunmore, D. Forsythe.", sourceUrl:"#" },
+  { source:"d-forsythe",target:"lakehouse",   verb:"attended meeting at",      date:"2019-08-10", tags:["travel","meeting","legal"], docId:"DOC-0178", docTitle:"Calendar Export", docDate:"2019-08-10", excerpt:"…9:00 AM — Strategy session, Lakehouse Retreat, attendees: A. Reyes, S. Dunmore, D. Forsythe.", sourceUrl:"#" },
+  { source:"n-castellan",target:"lakehouse",  verb:"booked travel to",         date:"2019-08-08", tags:["travel"], docId:"DOC-0176", docTitle:"Travel Itinerary", docDate:"2019-08-08", excerpt:"…charter flight booked for three passengers, destination Lakehouse Retreat, departure 08/09.", sourceUrl:"#" },
+  { source:"r-nakash",  target:"villa-azure", verb:"brokered purchase for",    date:"2020-02-18", tags:["real-estate","finance"], docId:"DOC-0290", docTitle:"Property Transfer Record", docDate:"2020-02-18", excerpt:"…title transferred to Villa Azure Trust; broker of record R. Nakashima, commission paid via wire.", sourceUrl:"#" },
+  { source:"villa-azure",target:"caymanbank", verb:"holds account at",         date:"2020-02-20", tags:["finance","offshore"], docId:"DOC-0291", docTitle:"Bank Account Opening Form", docDate:"2020-02-20", excerpt:"…Villa Azure Trust, account opened at Coral Bank & Trust, George Town branch, signatory E. Solberg.", sourceUrl:"#" },
+  { source:"e-solberg", target:"caymanbank",  verb:"authorized signatory at",  date:"2020-02-20", tags:["finance","offshore"], docId:"DOC-0291", docTitle:"Bank Account Opening Form", docDate:"2020-02-20", excerpt:"…Villa Azure Trust, account opened at Coral Bank & Trust, George Town branch, signatory E. Solberg.", sourceUrl:"#" },
+  { source:"e-solberg", target:"a-reyes",     verb:"wired funds on behalf of", date:"2020-05-11", tags:["finance","offshore"], docId:"DOC-0318", docTitle:"Wire Transfer Confirmation", docDate:"2020-05-11", excerpt:"…outgoing wire of $420,000 authorized by E. Solberg, beneficiary account associated with A. Reyes.", sourceUrl:"#" },
+  { source:"d-forsythe",target:"j-park",      verb:"coordinated with",         date:"2019-06-20", tags:["legal"], docId:"DOC-0207", docTitle:"Privileged Email Chain", docDate:"2019-06-20", excerpt:"…D. Forsythe forwards the Coral Bank inquiry to outside counsel J. Park for review.", sourceUrl:"#" },
+  { source:"j-fenwick", target:"m-holdings",  verb:"filed FOIA request re:",   date:"2021-09-03", tags:["media"], docId:"DOC-0402", docTitle:"FOIA Request Log", docDate:"2021-09-03", excerpt:"…request filed by J. Fenwick seeking board minutes and audit correspondence for fiscal year 2019.", sourceUrl:"#" },
+  { source:"t-vance",   target:"caymanbank",  verb:"flagged transfers from",   date:"2020-04-22", tags:["finance","audit","offshore"], docId:"DOC-0246", docTitle:"Audit Working Papers", docDate:"2020-04-22", excerpt:"…three transfers from Coral Bank & Trust could not be reconciled against invoiced services.", sourceUrl:"#" },
+  { source:"n-castellan",target:"c-ibarra",   verb:"corresponded with",        date:"2019-08-05", tags:["travel"], docId:"DOC-0170", docTitle:"Email: Venue Confirmation", docDate:"2019-08-05", excerpt:"…confirming the group's arrival window so catering and dock staff can be scheduled accordingly.", sourceUrl:"#" }
+];
+
+/* ========================================================================= */
+
+const TYPE_STYLE = {
+  person:       { color:"#c9a227", symbol:d3.symbolCircle,   size:220 },
+  organization: { color:"#4f8a86", symbol:d3.symbolSquare,   size:230 },
+  place:        { color:"#8c6fae", symbol:d3.symbolTriangle, size:230 },
+  document:     { color:"#b8452f", symbol:d3.symbolDiamond,  size:200 }
+};
+function styleFor(type){
+  return TYPE_STYLE[type] || { color:"#9aa0a6", symbol:d3.symbolCircle, size:200 };
+}
+
+let nodes = SAMPLE_NODES.map(d=>({...d}));
+let links = SAMPLE_LINKS.map(d=>({...d}));
+
+const nodeById = new Map(nodes.map(n=>[n.id,n]));
+// degree = how many relationships reference this node, drives node size
+nodes.forEach(n=> n.degree = links.filter(l=>l.source===n.id||l.target===n.id).length);
+
+const allTags = [...new Set(links.flatMap(l=>l.tags||[]))].sort();
+const allTypes = [...new Set(nodes.map(n=>n.type))];
+const allDocs = new Set(links.map(l=>l.docId));
+
+const dateOf = d => new Date(d.date.length===4 ? d.date+"-06-15" : d.date.length===7 ? d.date+"-15" : d.date);
+const minDate = d3.min(links, dateOf);
+const maxDate = d3.max(links, dateOf);
+
+document.getElementById("stat-nodes").textContent = nodes.length;
+document.getElementById("stat-links").textContent = links.length;
+document.getElementById("stat-docs").textContent = allDocs.size;
+
+/* ---- state ---- */
+const state = {
+  search:"", enabledTypes:new Set(allTypes), enabledTags:new Set(),
+  dateMin:minDate, dateMax:maxDate, selected:null
+};
+
+/* ---- build filter UI ---- */
+const typeFilterEl = document.getElementById("type-filters");
+allTypes.forEach(t=>{
+  const row = document.createElement("label");
+  row.className = "type-row";
+  row.innerHTML = `<input type="checkbox" checked data-type="${t}">
+    <span class="swatch" style="background:${styleFor(t).color}"></span> ${t}`;
+  typeFilterEl.appendChild(row);
+});
+typeFilterEl.addEventListener("change", e=>{
+  const t = e.target.dataset.type;
+  if(e.target.checked) state.enabledTypes.add(t); else state.enabledTypes.delete(t);
+  applyFilters();
+});
+
+const tagFilterEl = document.getElementById("tag-filters");
+allTags.forEach(tag=>{
+  const chip = document.createElement("span");
+  chip.className = "tag-chip"; chip.textContent = tag; chip.dataset.tag = tag;
+  chip.addEventListener("click", ()=>{
+    if(state.enabledTags.has(tag)) state.enabledTags.delete(tag); else state.enabledTags.add(tag);
+    chip.classList.toggle("on");
+    applyFilters();
+  });
+  tagFilterEl.appendChild(chip);
+});
+
+const rangeMinEl = document.getElementById("range-min");
+const rangeMaxEl = document.getElementById("range-max");
+[rangeMinEl, rangeMaxEl].forEach(el=>{
+  el.min = minDate.getTime(); el.max = maxDate.getTime(); el.step = 86400000;
+});
+rangeMinEl.value = minDate.getTime();
+rangeMaxEl.value = maxDate.getTime();
+function fmtDate(t){ return new Date(+t).toISOString().slice(0,10); }
+function refreshRangeLabels(){
+  document.getElementById("range-min-label").textContent = fmtDate(rangeMinEl.value);
+  document.getElementById("range-max-label").textContent = fmtDate(rangeMaxEl.value);
+}
+refreshRangeLabels();
+[rangeMinEl, rangeMaxEl].forEach(el=> el.addEventListener("input", ()=>{
+  if(+rangeMinEl.value > +rangeMaxEl.value){
+    if(el===rangeMinEl) rangeMaxEl.value = rangeMinEl.value; else rangeMinEl.value = rangeMaxEl.value;
+  }
+  state.dateMin = new Date(+rangeMinEl.value);
+  state.dateMax = new Date(+rangeMaxEl.value);
+  refreshRangeLabels();
+  applyFilters();
+}));
+
+document.getElementById("search").addEventListener("input", e=>{
+  state.search = e.target.value.trim().toLowerCase();
+  applyFilters();
+});
+
+document.getElementById("reset-btn").addEventListener("click", ()=>{
+  state.search=""; document.getElementById("search").value="";
+  state.enabledTypes = new Set(allTypes);
+  typeFilterEl.querySelectorAll("input").forEach(i=>i.checked=true);
+  state.enabledTags = new Set();
+  tagFilterEl.querySelectorAll(".tag-chip").forEach(c=>c.classList.remove("on"));
+  rangeMinEl.value = minDate.getTime(); rangeMaxEl.value = maxDate.getTime();
+  state.dateMin = minDate; state.dateMax = maxDate;
+  refreshRangeLabels();
+  closeDetail();
+  applyFilters();
+});
+
+/* ---- mobile drawer toggles ---- */
+document.getElementById("filters-toggle").addEventListener("click", ()=>{
+  document.getElementById("filters").classList.toggle("open");
+});
+
+/* ---- graph setup ---- */
+const svg = d3.select("#graph");
+const g = svg.append("g");
+const linkLayer = g.append("g").attr("class","links");
+const nodeLayer = g.append("g").attr("class","nodes");
+
+svg.call(d3.zoom().scaleExtent([0.25,4]).on("zoom", e=> g.attr("transform", e.transform)));
+
+let width, height;
+function measure(){
+  const r = document.getElementById("graph-wrap").getBoundingClientRect();
+  width = r.width; height = r.height;
+}
+measure();
+
+const simulation = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).id(d=>d.id).distance(90).strength(0.55))
+  .force("charge", d3.forceManyBody().strength(-260))
+  .force("center", d3.forceCenter(0,0))
+  .force("collide", d3.forceCollide(d=> 10 + Math.sqrt(d.degree||1)*4));
+
+const linkSel = linkLayer.selectAll("line")
+  .data(links)
+  .join("line")
+  .attr("class","link")
+  .attr("stroke-width", 1.2);
+
+const nodeSel = nodeLayer.selectAll("g.node")
+  .data(nodes)
+  .join("g")
+  .attr("class","node")
+  .call(d3.drag()
+    .on("start", (e,d)=>{ if(!e.active) simulation.alphaTarget(0.25).restart(); d.fx=d.x; d.fy=d.y; })
+    .on("drag", (e,d)=>{ d.fx=e.x; d.fy=e.y; })
+    .on("end", (e,d)=>{ if(!e.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+nodeSel.append("path")
+  .attr("class","node-shape")
+  .attr("d", d=> d3.symbol().type(styleFor(d.type).symbol).size(styleFor(d.type).size + (d.degree||0)*12)())
+  .attr("fill", d=> styleFor(d.type).color);
+
+nodeSel.append("text")
+  .attr("class","node-label")
+  .attr("dy", 4)
+  .attr("x", 11)
+  .text(d=>d.label);
+
+nodeSel.on("click", (e,d)=>{ e.stopPropagation(); selectNode(d); });
+svg.on("click", ()=> closeDetail());
+
+simulation.on("tick", ()=>{
+  linkSel
+    .attr("x1", d=>d.source.x).attr("y1", d=>d.source.y)
+    .attr("x2", d=>d.target.x).attr("y2", d=>d.target.y);
+  nodeSel.attr("transform", d=>`translate(${d.x},${d.y})`);
+});
+
+window.addEventListener("resize", ()=>{
+  measure();
+  simulation.force("center", d3.forceCenter(0,0));
+});
+
+/* ---- filtering (visual, doesn't restart layout) ---- */
+function passesFilters(node){
+  if(!state.enabledTypes.has(node.type)) return false;
+  if(state.search && !node.label.toLowerCase().includes(state.search)) return false;
+  return true;
+}
+function linkPasses(link){
+  const d = dateOf(link);
+  if(d < state.dateMin || d > state.dateMax) return false;
+  if(state.enabledTags.size && !(link.tags||[]).some(t=>state.enabledTags.has(t))) return false;
+  const s = typeof link.source === "object" ? link.source : nodeById.get(link.source);
+  const t = typeof link.target === "object" ? link.target : nodeById.get(link.target);
+  return passesFilters(s) && passesFilters(t);
+}
+function applyFilters(){
+  nodeSel.classed("hidden-node", d=> !passesFilters(d))
+         .style("display", d=> passesFilters(d) ? null : "none");
+  linkSel.style("display", d=> linkPasses(d) ? null : "none");
+  if(state.selected) renderTimeline(state.selected);
+}
+applyFilters();
+
+/* ---- selection & timeline ---- */
+function selectNode(d){
+  state.selected = d;
+  nodeSel.classed("selected", n=> n.id===d.id);
+  nodeSel.classed("dimmed", n=> n.id!==d.id && !isConnected(d.id, n.id));
+  linkSel.classed("lit", l=> l.source.id===d.id || l.target.id===d.id)
+         .classed("dimmed", l=> !(l.source.id===d.id || l.target.id===d.id));
+  document.getElementById("detail").classList.add("open");
+  document.getElementById("detail-name").textContent = d.label;
+  document.getElementById("detail-role").textContent = d.note || d.type;
+  renderTimeline(d);
+}
+function isConnected(idA, idB){
+  return links.some(l=> (l.source.id===idA && l.target.id===idB) || (l.source.id===idB && l.target.id===idA));
+}
+function renderTimeline(d){
+  const rel = links
+    .filter(l=> (l.source.id===d.id || l.target.id===d.id) && linkPasses(l))
+    .sort((a,b)=> dateOf(a)-dateOf(b));
+  const el = document.getElementById("detail-timeline");
+  el.innerHTML = "";
+  if(!rel.length){
+    el.innerHTML = `<p style="color:var(--text-dim);font-size:0.8rem;">No relationships match the current filters.</p>`;
+    return;
+  }
+  rel.forEach(l=>{
+    const other = l.source.id===d.id ? l.target : l.source;
+    const item = document.createElement("div");
+    item.className = "tl-item";
+    item.innerHTML = `
+      <div class="tl-date">${l.date}</div>
+      <div class="tl-verb"><b>${d.label}</b> ${l.verb} <b>${other.label}</b></div>
+      <div class="tl-tags">${(l.tags||[]).join(" · ")}</div>`;
+    item.addEventListener("click", ()=> openDoc(l));
+    el.appendChild(item);
+  });
+}
+function closeDetail(){
+  state.selected = null;
+  document.getElementById("detail").classList.remove("open");
+  nodeSel.classed("dimmed", false).classed("selected", false);
+  linkSel.classed("lit", false).classed("dimmed", false);
+}
+document.getElementById("detail-close").addEventListener("click", closeDetail);
+
+/* ---- source document modal ---- */
+function openDoc(l){
+  document.getElementById("modal-docid").textContent = l.docId;
+  document.getElementById("modal-title").textContent = l.docTitle;
+  document.getElementById("modal-date").textContent = l.docDate;
+  document.getElementById("modal-excerpt").textContent = l.excerpt;
+  const src = document.getElementById("modal-src");
+  src.href = l.sourceUrl || "#";
+  document.getElementById("modal-overlay").classList.add("open");
+}
+document.getElementById("modal-close").addEventListener("click", ()=>{
+  document.getElementById("modal-overlay").classList.remove("open");
+});
+document.getElementById("modal-overlay").addEventListener("click", e=>{
+  if(e.target.id==="modal-overlay") e.currentTarget.classList.remove("open");
+});
+</script>
+</body>
+</html>
