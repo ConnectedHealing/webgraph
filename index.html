@@ -35,7 +35,6 @@
   }
   #app{ display:flex; flex-direction:column; height:100vh; }
 
-  /* ---- Header ---- */
   header{
     display:flex; align-items:baseline; justify-content:space-between;
     gap:12px; padding:14px 16px 10px;
@@ -53,7 +52,11 @@
   }
   #stats b{ color:var(--paper); font-weight:600; }
 
-  /* ---- Toolbar ---- */
+  #subnote{
+    padding:6px 16px; font-size:0.72rem; color:var(--text-dim);
+    border-bottom:1px solid var(--line); font-family:var(--sans);
+  }
+
   #toolbar{
     display:flex; gap:8px; padding:10px 16px; align-items:center;
     border-bottom:1px solid var(--line); flex-wrap:wrap;
@@ -72,7 +75,6 @@
   .btn:hover{ border-color:var(--paper-dim); color:var(--paper); }
   .btn.active{ border-color:var(--gold); color:var(--gold); }
 
-  /* ---- Layout ---- */
   #main{ flex:1; display:flex; min-height:0; position:relative; }
   #graph-wrap{ flex:1; position:relative; min-width:0; }
   svg{ width:100%; height:100%; display:block; cursor:grab; }
@@ -92,7 +94,6 @@
   .node.dimmed .node-label{ opacity:0.08; }
   .node.selected .node-label{ fill:var(--paper); font-weight:600; }
 
-  /* ---- Filter drawer (left) ---- */
   #filters{
     width:260px; flex:none; border-right:1px solid var(--line);
     padding:14px; overflow-y:auto; background:rgba(0,0,0,0.15);
@@ -114,7 +115,6 @@
   .range-labels{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:0.68rem; color:var(--text-dim); margin-top:2px; }
   input[type=range]{ width:100%; accent-color:var(--string); }
 
-  /* ---- Detail / timeline panel (right) ---- */
   #detail{
     width:320px; flex:none; border-left:1px solid var(--line);
     padding:16px; overflow-y:auto; background:rgba(0,0,0,0.15);
@@ -135,7 +135,6 @@
   .tl-verb b{ color:var(--gold); font-weight:600; }
   .tl-tags{ font-size:0.66rem; color:var(--teal); }
 
-  /* ---- Empty state ---- */
   #empty-hint{
     position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
     font-family:var(--mono); font-size:0.72rem; color:var(--text-dim);
@@ -143,7 +142,6 @@
     border:1px solid var(--line); pointer-events:none;
   }
 
-  /* ---- Modal ---- */
   #modal-overlay{
     position:fixed; inset:0; background:rgba(10,13,17,0.72); display:none;
     align-items:center; justify-content:center; z-index:50; padding:20px;
@@ -162,11 +160,9 @@
     font-family:var(--serif); font-size:0.95rem; line-height:1.55; white-space:pre-wrap;
     border-top:1px solid #ddd3ba; border-bottom:1px solid #ddd3ba; padding:14px 0; margin-bottom:10px;
   }
-  #modal .excerpt mark{ background:#e7c96b; padding:0 2px; }
   #modal a.src-link{ font-size:0.78rem; color:var(--string-dim); }
 
-  /* ---- Mobile ---- */
-  #filters-toggle, #close-detail-mobile{ display:none; }
+  #filters-toggle{ display:none; }
   @media (max-width: 820px){
     #filters{
       position:absolute; z-index:20; top:0; bottom:0; left:0;
@@ -190,19 +186,20 @@
     <div id="stats">
       <span><b id="stat-nodes">0</b> entities</span>
       <span><b id="stat-links">0</b> relationships</span>
-      <span><b id="stat-docs">0</b> sources</span>
+      <span><b id="stat-docs">0</b> references</span>
     </div>
   </header>
+  <div id="subnote">Gold stars = traditions · teal circles = individual beliefs · blue diamonds = teachings or entities shared across more than one tradition. Dates are approximate reference points for sorting, not precise historical claims — several of these are interpretive/comparative parallels rather than settled fact.</div>
 
   <div id="toolbar">
     <button class="btn" id="filters-toggle">☰ Filters</button>
-    <input id="search" type="text" placeholder="Search entities…" autocomplete="off">
+    <input id="search" type="text" placeholder="Search…" autocomplete="off">
     <button class="btn" id="reset-btn">Reset view</button>
   </div>
 
   <div id="main">
     <aside id="filters">
-      <h2>Entity types</h2>
+      <h2>Node types</h2>
       <div id="type-filters"></div>
 
       <h2>Date range</h2>
@@ -210,13 +207,13 @@
       <input type="range" id="range-max">
       <div class="range-labels"><span id="range-min-label"></span><span id="range-max-label"></span></div>
 
-      <h2>Tags</h2>
+      <h2>Traditions (tags)</h2>
       <div id="tag-filters"></div>
     </aside>
 
     <div id="graph-wrap">
       <svg id="graph"></svg>
-      <div id="empty-hint">Click an entity to trace its timeline · drag to rearrange · scroll to zoom</div>
+      <div id="empty-hint">Click a point to trace its connections · drag to rearrange · scroll to zoom</div>
     </div>
 
     <aside id="detail">
@@ -236,86 +233,181 @@
     <h3 id="modal-title"></h3>
     <div class="doc-date" id="modal-date"></div>
     <div class="excerpt" id="modal-excerpt"></div>
-    <a class="src-link" id="modal-src" href="#" target="_blank" rel="noopener">View full source document ↗</a>
+    <a class="src-link" id="modal-src" href="#" target="_blank" rel="noopener">More on this ↗</a>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
 /* =========================================================================
-   DATA MODEL — replace the sample data below with your own.
-
-   NODES  { id, label, type, note }
-     - id:    unique string, referenced by links as source/target
-     - label: display name
-     - type:  a category string you define (colors/shapes are assigned
-              automatically to whatever distinct types you use)
-     - note:  short one-line description shown in the side panel (optional)
-
-   LINKS  { source, target, verb, date, tags, docId, docTitle, docDate,
-             excerpt, sourceUrl }
-     - source/target: node ids
-     - verb:    short description of the relationship/action
-                ("met with", "wired funds to", "flew with")
-     - date:    "YYYY-MM-DD" (or "YYYY-MM" / "YYYY") — drives the timeline
-                and the date-range filter
-     - tags:    array of strings, drives the tag filter
-     - docId, docTitle, docDate: identifies the source document
-     - excerpt: the passage that supports this relationship (shown in the
-                modal so a reader can verify it in context)
-     - sourceUrl: optional link to the original document
-
-   Swap SAMPLE_NODES / SAMPLE_LINKS for arrays loaded from your own JSON,
-   a CSV you parse with d3.csv(), or a small API — the rest of the file
-   doesn't need to change.
+   DATA — edit the two arrays below to change what's on the graph.
+   Every node needs a unique id. Every link's source/target must match
+   an id that exists in SAMPLE_NODES, or the page will fail to load.
    ========================================================================= */
 
 const SAMPLE_NODES = [
-  { id:"rosecrutian", label:"Rosecrutian",        type:"Group",        note:"" },
-  { id:"knights",     label:"Knights Templar",    type:"Group",        note:"" },
-  { id:"masons",      label:"Freemasons",         type:"Group",        note:"" },
-  { id:"myth",        label:"Greek Mythology",    type:"Group",        note:"" },
-  { id:"Egyptian",    label:"Egyptian Mythology", type:"Group",        note:"" },
-  { id:"Native",      label:"Native American",    type:"Group",        note:"" },
-  { id:"Aliens",      label:"Extra-Dimensional",  type:"Group",        note:"" },
-  { id:"r-nakash",    label:"R. Nakashima",       type:"person",       note:"Real-estate broker" },
-  { id:"villa-azure", label:"Villa Azure Trust",  type:"organization", note:"Offshore property trust" },
-  { id:"e-solberg",   label:"E. Solberg",         type:"person",       note:"Wire-transfer signatory" },
-  { id:"caymanbank",  label:"Coral Bank & Trust", type:"organization", note:"Correspondent bank, Cayman branch" },
-  { id:"d-forsythe",  label:"D. Forsythe",        type:"person",       note:"Meridian general counsel" },
-  { id:"lakehouse",   label:"Lakehouse Retreat",  type:"place",        note:"Recurring meeting location, 2019–2021" },
-  { id:"n-castellan", label:"N. Castellano",      type:"person",       note:"Travel coordinator" },
-  { id:"j-fenwick",   label:"J. Fenwick",         type:"person",       note:"Journalist, first FOIA request" }
+  // ---- Main traditions ----
+  { id:"rosicrucian", label:"Rosicrucianism",          type:"topic", note:"17th-century esoteric Christian mystical movement" },
+  { id:"templar",     label:"Knights Templar",         type:"topic", note:"Medieval military-religious order, 1119–1312" },
+  { id:"freemasons",  label:"Freemasonry",             type:"topic", note:"Fraternal order using architectural symbolism, formalized 1717" },
+  { id:"greek",       label:"Greek Mythology",         type:"topic", note:"Pantheon and myth cycles of ancient Greece" },
+  { id:"egyptian",    label:"Egyptian Mythology",      type:"topic", note:"Pantheon and cosmology of ancient Egypt" },
+  { id:"native",      label:"Native American Traditions", type:"topic", note:"Spans many distinct nations; shown here at a general level" },
+  { id:"extradim",    label:"Extra-Dimensional Beings", type:"topic", note:"Modern speculative tradition of non-human visitors/teachers" },
+
+  // ---- Rosicrucian beliefs ----
+  { id:"rc-hermeticism",     label:"Hermetic Philosophy",     type:"belief", note:"Teachings attributed to Hermes Trismegistus; underlies Western esotericism" },
+  { id:"rc-alchemy",         label:"Alchemical Transformation", type:"belief", note:"Inner spiritual refinement symbolized as turning lead into gold" },
+  { id:"rc-invisible-college", label:"The Invisible College", type:"belief", note:"Legendary hidden brotherhood of enlightened adepts" },
+  { id:"rc-rosecross",       label:"Rose Cross Symbolism",    type:"belief", note:"The soul (rose) unfolding upon the cross of matter" },
+
+  // ---- Templar beliefs ----
+  { id:"tp-grail",        label:"Holy Grail Guardianship",       type:"belief", note:"Legendary role protecting sacred relics" },
+  { id:"tp-solomon",      label:"Temple of Solomon",             type:"belief", note:"Order founded on the Temple Mount; said to have excavated beneath it" },
+  { id:"tp-warrior-monk", label:"Warrior-Monk Asceticism",       type:"belief", note:"Vows of poverty, chastity, obedience combined with martial duty" },
+  { id:"tp-persecution",  label:"Suppression & Hidden Knowledge", type:"belief", note:"1307 mass arrests fed legends that secrets went underground" },
+
+  // ---- Freemason beliefs ----
+  { id:"fm-architect", label:"Great Architect of the Universe", type:"belief", note:"Non-denominational term for a supreme creative force" },
+  { id:"fm-geometry",  label:"Sacred Geometry",                 type:"belief", note:"Architecture and proportion used as moral and spiritual metaphor" },
+  { id:"fm-alleye",    label:"All-Seeing Eye",                  type:"belief", note:"Symbol of divine watchfulness and providence" },
+  { id:"fm-solomon",   label:"Solomon's Temple Legend",         type:"belief", note:"Mythic building of the Temple; central initiation allegory (Hiram Abiff)" },
+
+  // ---- Greek beliefs ----
+  { id:"gr-olympus",    label:"Pantheon of Olympus",  type:"belief", note:"Gods governing natural forces and human affairs" },
+  { id:"gr-hermes",     label:"Hermes, the Messenger", type:"belief", note:"Psychopomp who guides souls and carries divine messages" },
+  { id:"gr-underworld", label:"Underworld & Judgment", type:"belief", note:"Souls judged and sorted in the realm of Hades" },
+  { id:"gr-oracle",     label:"Oracle of Delphi",      type:"belief", note:"Prophecy channeled through a priestess in trance" },
+
+  // ---- Egyptian beliefs ----
+  { id:"eg-pantheon",   label:"Pantheon of Osiris & Isis", type:"belief", note:"Gods governing death, rebirth, and cosmic order" },
+  { id:"eg-thoth",      label:"Thoth, Scribe of the Gods", type:"belief", note:"God of wisdom, writing, and magic" },
+  { id:"eg-judgment",   label:"Weighing of the Heart",     type:"belief", note:"Heart weighed against Ma'at's feather to judge the soul" },
+  { id:"eg-eyeofhorus", label:"Eye of Horus",              type:"belief", note:"Symbol of protection, royal power, and health" },
+  { id:"eg-pyramids",   label:"Sacred Geometry of the Pyramids", type:"belief", note:"Monumental architecture aligned to the stars and afterlife cosmology" },
+
+  // ---- Native American beliefs ----
+  { id:"na-greatspirit",   label:"The Great Spirit",              type:"belief", note:"A unifying creative force described in many (not all) Indigenous traditions" },
+  { id:"na-fourdirections", label:"Sacred Circle & Four Directions", type:"belief", note:"Cosmology organized around a circle and the cardinal directions" },
+  { id:"na-starknowledge", label:"Star Knowledge",                type:"belief", note:"Oral traditions describing sky beings and celestial origins" },
+  { id:"na-visionquest",   label:"Vision Quest",                  type:"belief", note:"Solitary rite of passage seeking spiritual guidance" },
+  { id:"na-greatserpent",  label:"Great Serpent / Underwater Spirit", type:"belief", note:"A powerful water-and-earth spirit figure described in several nations' lore" },
+
+  // ---- Extra-Dimensional beliefs ----
+  { id:"ed-ancientastronaut", label:"Ancient Astronaut Hypothesis", type:"belief", note:"Idea that early civilizations were visited or taught by non-human beings" },
+  { id:"ed-starpeople",       label:"Star People / Sky Beings",     type:"belief", note:"Entities said to originate beyond Earth, described across cultures" },
+  { id:"ed-dnaintervention",  label:"Intervention in Human Origins", type:"belief", note:"Speculative idea that outside beings shaped early humanity" },
+  { id:"ed-interdimensional", label:"Interdimensional Messengers",  type:"belief", note:"Beings said to cross between planes of reality rather than physical space" },
+
+  // ---- Shared / cross-tradition teachings & entities ----
+  { id:"sh-hermesthoth",   label:"Hermes / Thoth (Wisdom-Messenger)", type:"shared", note:"Later Hellenistic-Egyptian writers merged Greek Hermes and Egyptian Thoth into 'Hermes Trismegistus,' namesake of Hermeticism" },
+  { id:"sh-asabove",       label:"As Above, So Below",               type:"shared", note:"Hermetic principle holding that the cosmic and human realms mirror one another" },
+  { id:"sh-sacredgeom",    label:"Sacred Geometry (shared motif)",   type:"shared", note:"Geometric proportion used as a symbol of divine order across traditions" },
+  { id:"sh-solomontemple", label:"Solomon's Temple Mythos",          type:"shared", note:"The Jerusalem Temple as a shared symbolic and historical anchor" },
+  { id:"sh-alleye",        label:"The All-Seeing Eye (parallel)",    type:"shared", note:"An eye symbol denoting divine watchfulness, appearing independently in more than one tradition" },
+  { id:"sh-architect",     label:"Creator / Architect of All",       type:"shared", note:"A singular organizing creative force, named differently across traditions" },
+  { id:"sh-secretinit",    label:"Secret Initiatory Wisdom",         type:"shared", note:"Teachings preserved and transmitted only through initiation into a closed order" },
+  { id:"sh-judgment",      label:"Judgment of the Soul",             type:"shared", note:"Belief that a soul's fate is weighed or judged after death" },
+  { id:"sh-starbeings",    label:"Sky / Star Beings",                type:"shared", note:"Knowledge or visitation attributed to beings associated with the stars" },
+  { id:"sh-serpent",       label:"Serpent Wisdom-Keeper (parallel)", type:"shared", note:"A serpent figure associated with hidden knowledge or power, appearing across unrelated traditions" },
+  { id:"sh-vision",        label:"Prophetic Vision & Channeling",    type:"shared", note:"Communication with higher powers through trance or vision-seeking" },
+  { id:"sh-nonhuman",      label:"Non-Human Teachers of Civilization", type:"shared", note:"A recurring motif of divine or otherworldly beings instructing early humans" }
 ];
 
 const SAMPLE_LINKS = [
-  { source:"a-reyes",   target:"m-holdings",  verb:"served as CFO of",         date:"2018-03-01", tags:["corporate","finance"], docId:"DOC-0114", docTitle:"Meridian Holdings — Officer Filing", docDate:"2018-03-01", excerpt:"…A. Reyes is appointed Chief Financial Officer of Meridian Holdings effective March 1, 2018, reporting directly to the board.", sourceUrl:"#" },
-  { source:"a-reyes",   target:"j-park",      verb:"retained as counsel",      date:"2019-06-14", tags:["legal"], docId:"DOC-0201", docTitle:"Engagement Letter", docDate:"2019-06-14", excerpt:"…Park & Weiss LLP is retained to advise A. Reyes on matters relating to the pending Coral Bank & Trust inquiry.", sourceUrl:"#" },
-  { source:"s-dunmore", target:"m-holdings",  verb:"joined board of",          date:"2017-11-02", tags:["corporate"], docId:"DOC-0033", docTitle:"Board Resolution 17-09", docDate:"2017-11-02", excerpt:"…the Board unanimously approves the appointment of S. Dunmore as an independent director.", sourceUrl:"#" },
-  { source:"t-vance",   target:"halworth",    verb:"employed by",              date:"2015-01-01", tags:["finance"], docId:"DOC-0002", docTitle:"Halworth & Cole Staff Directory", docDate:"2015-01-01", excerpt:"…T. Vance, Senior Audit Manager, assigned to institutional accounts including Meridian Holdings.", sourceUrl:"#" },
-  { source:"t-vance",   target:"m-holdings",  verb:"conducted audit of",       date:"2020-04-22", tags:["finance","audit"], docId:"DOC-0245", docTitle:"Annual Audit Memo", docDate:"2020-04-22", excerpt:"…fieldwork identified three unreconciled wire transfers routed through Coral Bank & Trust during Q3 2019.", sourceUrl:"#" },
-  { source:"c-ibarra",  target:"lakehouse",   verb:"arranged logistics for",   date:"2019-08-09", tags:["travel"], docId:"DOC-0177", docTitle:"Email: Weekend Arrangements", docDate:"2019-08-09", excerpt:"…confirming catering and dock access for the group arriving Friday evening at Lakehouse Retreat.", sourceUrl:"#" },
-  { source:"a-reyes",   target:"lakehouse",   verb:"attended meeting at",      date:"2019-08-10", tags:["travel","meeting"], docId:"DOC-0178", docTitle:"Calendar Export", docDate:"2019-08-10", excerpt:"…9:00 AM — Strategy session, Lakehouse Retreat, attendees: A. Reyes, S. Dunmore, D. Forsythe.", sourceUrl:"#" },
-  { source:"s-dunmore", target:"lakehouse",   verb:"attended meeting at",      date:"2019-08-10", tags:["travel","meeting"], docId:"DOC-0178", docTitle:"Calendar Export", docDate:"2019-08-10", excerpt:"…9:00 AM — Strategy session, Lakehouse Retreat, attendees: A. Reyes, S. Dunmore, D. Forsythe.", sourceUrl:"#" },
-  { source:"d-forsythe",target:"lakehouse",   verb:"attended meeting at",      date:"2019-08-10", tags:["travel","meeting","legal"], docId:"DOC-0178", docTitle:"Calendar Export", docDate:"2019-08-10", excerpt:"…9:00 AM — Strategy session, Lakehouse Retreat, attendees: A. Reyes, S. Dunmore, D. Forsythe.", sourceUrl:"#" },
-  { source:"n-castellan",target:"lakehouse",  verb:"booked travel to",         date:"2019-08-08", tags:["travel"], docId:"DOC-0176", docTitle:"Travel Itinerary", docDate:"2019-08-08", excerpt:"…charter flight booked for three passengers, destination Lakehouse Retreat, departure 08/09.", sourceUrl:"#" },
-  { source:"r-nakash",  target:"villa-azure", verb:"brokered purchase for",    date:"2020-02-18", tags:["real-estate","finance"], docId:"DOC-0290", docTitle:"Property Transfer Record", docDate:"2020-02-18", excerpt:"…title transferred to Villa Azure Trust; broker of record R. Nakashima, commission paid via wire.", sourceUrl:"#" },
-  { source:"villa-azure",target:"caymanbank", verb:"holds account at",         date:"2020-02-20", tags:["finance","offshore"], docId:"DOC-0291", docTitle:"Bank Account Opening Form", docDate:"2020-02-20", excerpt:"…Villa Azure Trust, account opened at Coral Bank & Trust, George Town branch, signatory E. Solberg.", sourceUrl:"#" },
-  { source:"e-solberg", target:"caymanbank",  verb:"authorized signatory at",  date:"2020-02-20", tags:["finance","offshore"], docId:"DOC-0291", docTitle:"Bank Account Opening Form", docDate:"2020-02-20", excerpt:"…Villa Azure Trust, account opened at Coral Bank & Trust, George Town branch, signatory E. Solberg.", sourceUrl:"#" },
-  { source:"e-solberg", target:"a-reyes",     verb:"wired funds on behalf of", date:"2020-05-11", tags:["finance","offshore"], docId:"DOC-0318", docTitle:"Wire Transfer Confirmation", docDate:"2020-05-11", excerpt:"…outgoing wire of $420,000 authorized by E. Solberg, beneficiary account associated with A. Reyes.", sourceUrl:"#" },
-  { source:"d-forsythe",target:"j-park",      verb:"coordinated with",         date:"2019-06-20", tags:["legal"], docId:"DOC-0207", docTitle:"Privileged Email Chain", docDate:"2019-06-20", excerpt:"…D. Forsythe forwards the Coral Bank inquiry to outside counsel J. Park for review.", sourceUrl:"#" },
-  { source:"j-fenwick", target:"m-holdings",  verb:"filed FOIA request re:",   date:"2021-09-03", tags:["media"], docId:"DOC-0402", docTitle:"FOIA Request Log", docDate:"2021-09-03", excerpt:"…request filed by J. Fenwick seeking board minutes and audit correspondence for fiscal year 2019.", sourceUrl:"#" },
-  { source:"t-vance",   target:"caymanbank",  verb:"flagged transfers from",   date:"2020-04-22", tags:["finance","audit","offshore"], docId:"DOC-0246", docTitle:"Audit Working Papers", docDate:"2020-04-22", excerpt:"…three transfers from Coral Bank & Trust could not be reconciled against invoiced services.", sourceUrl:"#" },
-  { source:"n-castellan",target:"c-ibarra",   verb:"corresponded with",        date:"2019-08-05", tags:["travel"], docId:"DOC-0170", docTitle:"Email: Venue Confirmation", docDate:"2019-08-05", excerpt:"…confirming the group's arrival window so catering and dock staff can be scheduled accordingly.", sourceUrl:"#" }
+  // ---- Rosicrucian: topic -> beliefs (1614, Fama Fraternitatis) ----
+  { source:"rosicrucian", target:"rc-hermeticism",     verb:"holds the belief in", date:"1614-01-01", tags:["rosicrucian"], docId:"REF-001", docTitle:"Hermetic Philosophy", docDate:"1614-01-01", excerpt:"Rosicrucian teaching draws on the Hermetic corpus attributed to Hermes Trismegistus, treating it as the foundation of Western esoteric wisdom.", sourceUrl:"#" },
+  { source:"rosicrucian", target:"rc-alchemy",         verb:"holds the belief in", date:"1614-01-01", tags:["rosicrucian"], docId:"REF-002", docTitle:"Alchemical Transformation", docDate:"1614-01-01", excerpt:"Alchemy is treated symbolically: turning lead into gold represents the soul's inner refinement rather than literal metallurgy.", sourceUrl:"#" },
+  { source:"rosicrucian", target:"rc-invisible-college", verb:"holds the belief in", date:"1614-01-01", tags:["rosicrucian"], docId:"REF-003", docTitle:"The Invisible College", docDate:"1614-01-01", excerpt:"Early Rosicrucian manifestos describe a hidden brotherhood of adepts working quietly to spread enlightenment.", sourceUrl:"#" },
+  { source:"rosicrucian", target:"rc-rosecross",       verb:"holds the belief in", date:"1614-01-01", tags:["rosicrucian"], docId:"REF-004", docTitle:"Rose Cross Symbolism", docDate:"1614-01-01", excerpt:"The rose blooming on the cross symbolizes the soul unfolding through spiritual development while still bound to material existence.", sourceUrl:"#" },
+
+  // ---- Templar: topic -> beliefs (real historical milestones) ----
+  { source:"templar", target:"tp-solomon",      verb:"holds the belief in", date:"1119-01-01", tags:["templar"], docId:"REF-005", docTitle:"Temple of Solomon", docDate:"1119-01-01", excerpt:"The order was founded and headquartered on the Temple Mount in Jerusalem, the traditional site of Solomon's Temple.", sourceUrl:"#" },
+  { source:"templar", target:"tp-warrior-monk", verb:"holds the belief in", date:"1129-01-01", tags:["templar"], docId:"REF-006", docTitle:"Warrior-Monk Asceticism", docDate:"1129-01-01", excerpt:"The Rule adopted at the Council of Troyes bound Templars to monastic vows alongside their military role.", sourceUrl:"#" },
+  { source:"templar", target:"tp-grail",        verb:"holds the belief in", date:"1180-01-01", tags:["templar"], docId:"REF-007", docTitle:"Holy Grail Guardianship", docDate:"1180-01-01", excerpt:"Medieval romance literature increasingly cast the order as protectors of sacred relics, including the Grail legend.", sourceUrl:"#" },
+  { source:"templar", target:"tp-persecution",  verb:"holds the belief in", date:"1307-10-13", tags:["templar"], docId:"REF-008", docTitle:"Suppression & Hidden Knowledge", docDate:"1307-10-13", excerpt:"Mass arrests on Friday the 13th, 1307, and the order's subsequent dissolution fed centuries of speculation about secrets that survived underground.", sourceUrl:"#" },
+
+  // ---- Freemasons: topic -> beliefs (1717, Grand Lodge founding) ----
+  { source:"freemasons", target:"fm-architect", verb:"holds the belief in", date:"1717-06-24", tags:["freemasons"], docId:"REF-009", docTitle:"Great Architect of the Universe", docDate:"1717-06-24", excerpt:"Masonic ritual uses this non-denominational term so members of any faith can refer to a shared creative first cause.", sourceUrl:"#" },
+  { source:"freemasons", target:"fm-geometry",  verb:"holds the belief in", date:"1717-06-24", tags:["freemasons"], docId:"REF-010", docTitle:"Sacred Geometry", docDate:"1717-06-24", excerpt:"Stonemason's tools and geometric proportion are used throughout Masonic ritual as moral and spiritual metaphor.", sourceUrl:"#" },
+  { source:"freemasons", target:"fm-alleye",    verb:"holds the belief in", date:"1717-06-24", tags:["freemasons"], docId:"REF-011", docTitle:"All-Seeing Eye", docDate:"1717-06-24", excerpt:"The Eye of Providence appears in Masonic iconography as a symbol of divine watchfulness over human affairs.", sourceUrl:"#" },
+  { source:"freemasons", target:"fm-solomon",   verb:"holds the belief in", date:"1717-06-24", tags:["freemasons"], docId:"REF-012", docTitle:"Solomon's Temple Legend", docDate:"1717-06-24", excerpt:"The building of Solomon's Temple, and the allegorical figure of Hiram Abiff, forms the central story of Masonic initiation.", sourceUrl:"#" },
+
+  // ---- Greek: topic -> beliefs ----
+  { source:"greek", target:"gr-olympus",    verb:"holds the belief in", date:"0700-01-01", tags:["greek"], docId:"REF-013", docTitle:"Pantheon of Olympus", docDate:"0700-01-01", excerpt:"A pantheon headed by Zeus governs natural forces and human fate from Mount Olympus.", sourceUrl:"#" },
+  { source:"greek", target:"gr-hermes",     verb:"holds the belief in", date:"0700-01-01", tags:["greek"], docId:"REF-014", docTitle:"Hermes, the Messenger", docDate:"0700-01-01", excerpt:"Hermes serves as messenger of the gods and psychopomp, guiding souls to the underworld.", sourceUrl:"#" },
+  { source:"greek", target:"gr-underworld", verb:"holds the belief in", date:"0700-01-01", tags:["greek"], docId:"REF-015", docTitle:"Underworld & Judgment", docDate:"0700-01-01", excerpt:"Souls are judged and sorted upon arrival in the realm of Hades.", sourceUrl:"#" },
+  { source:"greek", target:"gr-oracle",     verb:"holds the belief in", date:"0700-01-01", tags:["greek"], docId:"REF-016", docTitle:"Oracle of Delphi", docDate:"0700-01-01", excerpt:"A priestess at Delphi delivers prophecy while in a trance state, interpreted by attending priests.", sourceUrl:"#" },
+
+  // ---- Egyptian: topic -> beliefs ----
+  { source:"egyptian", target:"eg-pantheon",   verb:"holds the belief in", date:"0200-01-01", tags:["egyptian"], docId:"REF-017", docTitle:"Pantheon of Osiris & Isis", docDate:"0200-01-01", excerpt:"Osiris, Isis, and related deities govern death, rebirth, and the maintenance of cosmic order (Ma'at).", sourceUrl:"#" },
+  { source:"egyptian", target:"eg-thoth",      verb:"holds the belief in", date:"0200-01-01", tags:["egyptian"], docId:"REF-018", docTitle:"Thoth, Scribe of the Gods", docDate:"0200-01-01", excerpt:"Thoth presides over wisdom, writing, and magic, and records the outcome of the judgment of the dead.", sourceUrl:"#" },
+  { source:"egyptian", target:"eg-judgment",   verb:"holds the belief in", date:"0200-01-01", tags:["egyptian"], docId:"REF-019", docTitle:"Weighing of the Heart", docDate:"0200-01-01", excerpt:"A soul's heart is weighed against the feather of Ma'at to determine its fate in the afterlife.", sourceUrl:"#" },
+  { source:"egyptian", target:"eg-eyeofhorus", verb:"holds the belief in", date:"0200-01-01", tags:["egyptian"], docId:"REF-020", docTitle:"Eye of Horus", docDate:"0200-01-01", excerpt:"The Eye of Horus symbolizes protection, royal authority, and restored health.", sourceUrl:"#" },
+  { source:"egyptian", target:"eg-pyramids",   verb:"holds the belief in", date:"0200-01-01", tags:["egyptian"], docId:"REF-021", docTitle:"Sacred Geometry of the Pyramids", docDate:"0200-01-01", excerpt:"Pyramid construction reflects precise geometric and astronomical alignment tied to afterlife cosmology.", sourceUrl:"#" },
+
+  // ---- Native American: topic -> beliefs ----
+  { source:"native", target:"na-greatspirit",    verb:"holds the belief in", date:"0500-01-01", tags:["native"], docId:"REF-022", docTitle:"The Great Spirit", docDate:"0500-01-01", excerpt:"Many, though not all, Indigenous nations describe a unifying creative force underlying all things.", sourceUrl:"#" },
+  { source:"native", target:"na-fourdirections", verb:"holds the belief in", date:"0500-01-01", tags:["native"], docId:"REF-023", docTitle:"Sacred Circle & Four Directions", docDate:"0500-01-01", excerpt:"Cosmology is frequently organized around a circle and the four cardinal directions, each carrying symbolic meaning.", sourceUrl:"#" },
+  { source:"native", target:"na-starknowledge",  verb:"holds the belief in", date:"0500-01-01", tags:["native"], docId:"REF-024", docTitle:"Star Knowledge", docDate:"0500-01-01", excerpt:"Oral traditions in several nations describe knowledge, or beings, originating from the stars.", sourceUrl:"#" },
+  { source:"native", target:"na-visionquest",    verb:"holds the belief in", date:"0500-01-01", tags:["native"], docId:"REF-025", docTitle:"Vision Quest", docDate:"0500-01-01", excerpt:"A solitary rite of passage undertaken to seek spiritual guidance and personal purpose.", sourceUrl:"#" },
+  { source:"native", target:"na-greatserpent",   verb:"holds the belief in", date:"0500-01-01", tags:["native"], docId:"REF-026", docTitle:"Great Serpent / Underwater Spirit", docDate:"0500-01-01", excerpt:"A powerful serpent or underwater spirit figure appears in the lore of several distinct nations.", sourceUrl:"#" },
+
+  // ---- Extra-Dimensional: topic -> beliefs (real popularization dates) ----
+  { source:"extradim", target:"ed-ancientastronaut", verb:"holds the belief in", date:"1968-01-01", tags:["extradim"], docId:"REF-027", docTitle:"Ancient Astronaut Hypothesis", docDate:"1968-01-01", excerpt:"Popularized in 1968, this hypothesis holds that early civilizations received visits or teaching from non-human beings.", sourceUrl:"#" },
+  { source:"extradim", target:"ed-interdimensional", verb:"holds the belief in", date:"1969-01-01", tags:["extradim"], docId:"REF-028", docTitle:"Interdimensional Messengers", docDate:"1969-01-01", excerpt:"An alternative framing proposes these beings cross between planes or dimensions rather than travel physically through space.", sourceUrl:"#" },
+  { source:"extradim", target:"ed-starpeople",       verb:"holds the belief in", date:"1975-01-01", tags:["extradim"], docId:"REF-029", docTitle:"Star People / Sky Beings", docDate:"1975-01-01", excerpt:"Later writers grouped various cultures' sky-being accounts under a shared 'star people' framing.", sourceUrl:"#" },
+  { source:"extradim", target:"ed-dnaintervention",  verb:"holds the belief in", date:"1976-01-01", tags:["extradim"], docId:"REF-030", docTitle:"Intervention in Human Origins", docDate:"1976-01-01", excerpt:"A more specific speculative claim that outside beings directly shaped early human development.", sourceUrl:"#" },
+
+  // ---- Shared / cross-tradition connections ----
+  { source:"sh-hermesthoth", target:"gr-hermes",       verb:"links", date:"0200-01-01", tags:["greek","egyptian","rosicrucian"], docId:"REF-031", docTitle:"Hermes / Thoth (Wisdom-Messenger)", docDate:"0200-01-01", excerpt:"Greco-Roman era Egyptian writers merged Hermes and Thoth into a single wisdom-god figure.", sourceUrl:"#" },
+  { source:"sh-hermesthoth", target:"eg-thoth",         verb:"links", date:"0200-01-01", tags:["greek","egyptian","rosicrucian"], docId:"REF-032", docTitle:"Hermes / Thoth (Wisdom-Messenger)", docDate:"0200-01-01", excerpt:"Thoth's role as scribe and wisdom-keeper was identified with the Greek Hermes under Hellenistic influence.", sourceUrl:"#" },
+  { source:"sh-hermesthoth", target:"rc-hermeticism",   verb:"links", date:"0200-01-01", tags:["greek","egyptian","rosicrucian"], docId:"REF-033", docTitle:"Hermes / Thoth (Wisdom-Messenger)", docDate:"0200-01-01", excerpt:"The composite 'Hermes Trismegistus' became the namesake and legendary author behind the Hermetic texts.", sourceUrl:"#" },
+
+  { source:"sh-asabove", target:"rc-hermeticism", verb:"links", date:"1200-01-01", tags:["rosicrucian"], docId:"REF-034", docTitle:"As Above, So Below", docDate:"1200-01-01", excerpt:"This principle, drawn from the Emerald Tablet tradition, became central to Hermetic and Rosicrucian thought.", sourceUrl:"#" },
+  { source:"sh-asabove", target:"fm-geometry",    verb:"links", date:"1200-01-01", tags:["rosicrucian","freemasons"], docId:"REF-035", docTitle:"As Above, So Below", docDate:"1200-01-01", excerpt:"Masonic use of geometric proportion echoes the same idea: earthly structure mirroring cosmic order.", sourceUrl:"#" },
+
+  { source:"sh-sacredgeom", target:"fm-geometry", verb:"links", date:"1717-01-01", tags:["freemasons","egyptian","rosicrucian"], docId:"REF-036", docTitle:"Sacred Geometry (shared motif)", docDate:"1717-01-01", excerpt:"Masonic ritual formally adopted geometric symbolism already long associated with sacred architecture.", sourceUrl:"#" },
+  { source:"sh-sacredgeom", target:"eg-pyramids", verb:"links", date:"1717-01-01", tags:["freemasons","egyptian","rosicrucian"], docId:"REF-037", docTitle:"Sacred Geometry (shared motif)", docDate:"1717-01-01", excerpt:"Pyramid construction is frequently cited as an earlier example of the same geometric-spiritual impulse.", sourceUrl:"#" },
+  { source:"sh-sacredgeom", target:"rc-alchemy",  verb:"links", date:"1717-01-01", tags:["freemasons","egyptian","rosicrucian"], docId:"REF-038", docTitle:"Sacred Geometry (shared motif)", docDate:"1717-01-01", excerpt:"Alchemical diagrams often used geometric forms to represent stages of spiritual transformation.", sourceUrl:"#" },
+
+  { source:"sh-solomontemple", target:"tp-solomon", verb:"links", date:"1717-01-01", tags:["templar","freemasons"], docId:"REF-039", docTitle:"Solomon's Temple Mythos", docDate:"1717-01-01", excerpt:"The Templars' founding location and the Masonic origin story both center on the same Jerusalem Temple.", sourceUrl:"#" },
+  { source:"sh-solomontemple", target:"fm-solomon", verb:"links", date:"1717-01-01", tags:["templar","freemasons"], docId:"REF-040", docTitle:"Solomon's Temple Mythos", docDate:"1717-01-01", excerpt:"Masonic ritual builds its central allegory around the construction of Solomon's Temple.", sourceUrl:"#" },
+
+  { source:"sh-alleye", target:"fm-alleye",    verb:"links", date:"1782-01-01", tags:["freemasons","egyptian"], docId:"REF-041", docTitle:"The All-Seeing Eye (parallel)", docDate:"1782-01-01", excerpt:"The Eye of Providence entered American civic and Masonic imagery, including the Great Seal, in 1782.", sourceUrl:"#" },
+  { source:"sh-alleye", target:"eg-eyeofhorus", verb:"links", date:"1782-01-01", tags:["freemasons","egyptian"], docId:"REF-042", docTitle:"The All-Seeing Eye (parallel)", docDate:"1782-01-01", excerpt:"Commentators have long drawn a visual parallel to the much older Eye of Horus, though the traditions arose independently.", sourceUrl:"#" },
+
+  { source:"sh-architect", target:"fm-architect",  verb:"links", date:"1717-01-01", tags:["freemasons","native"], docId:"REF-043", docTitle:"Creator / Architect of All", docDate:"1717-01-01", excerpt:"Masonic ritual names a single, non-denominational creative force as the Great Architect of the Universe.", sourceUrl:"#" },
+  { source:"sh-architect", target:"na-greatspirit", verb:"links", date:"1717-01-01", tags:["freemasons","native"], docId:"REF-044", docTitle:"Creator / Architect of All", docDate:"1717-01-01", excerpt:"Many Indigenous traditions independently describe a comparable unifying creative force.", sourceUrl:"#" },
+
+  { source:"sh-secretinit", target:"rc-invisible-college", verb:"links", date:"1717-01-01", tags:["rosicrucian","templar","freemasons"], docId:"REF-045", docTitle:"Secret Initiatory Wisdom", docDate:"1717-01-01", excerpt:"All three orders describe knowledge preserved and transmitted only through formal initiation.", sourceUrl:"#" },
+  { source:"sh-secretinit", target:"tp-persecution",       verb:"links", date:"1717-01-01", tags:["rosicrucian","templar","freemasons"], docId:"REF-046", docTitle:"Secret Initiatory Wisdom", docDate:"1717-01-01", excerpt:"The Templars' sudden suppression is often cited as the point their closed knowledge scattered into other orders.", sourceUrl:"#" },
+  { source:"sh-secretinit", target:"fm-solomon",            verb:"links", date:"1717-01-01", tags:["rosicrucian","templar","freemasons"], docId:"REF-047", docTitle:"Secret Initiatory Wisdom", docDate:"1717-01-01", excerpt:"Masonic degrees are structured as a staged initiation into progressively deeper allegorical knowledge.", sourceUrl:"#" },
+
+  { source:"sh-judgment", target:"eg-judgment",   verb:"links", date:"0300-01-01", tags:["egyptian","greek"], docId:"REF-048", docTitle:"Judgment of the Soul", docDate:"0300-01-01", excerpt:"Both traditions describe a formal reckoning of the soul immediately after death.", sourceUrl:"#" },
+  { source:"sh-judgment", target:"gr-underworld", verb:"links", date:"0300-01-01", tags:["egyptian","greek"], docId:"REF-049", docTitle:"Judgment of the Soul", docDate:"0300-01-01", excerpt:"The Greek underworld likewise sorts souls according to their conduct in life.", sourceUrl:"#" },
+
+  { source:"sh-starbeings", target:"na-starknowledge", verb:"links", date:"1968-01-01", tags:["native","extradim"], docId:"REF-050", docTitle:"Sky / Star Beings", docDate:"1968-01-01", excerpt:"Modern writers have drawn comparisons between Indigenous star-knowledge traditions and the ancient-astronaut framing.", sourceUrl:"#" },
+  { source:"sh-starbeings", target:"ed-starpeople",     verb:"links", date:"1968-01-01", tags:["native","extradim"], docId:"REF-051", docTitle:"Sky / Star Beings", docDate:"1968-01-01", excerpt:"The 'star people' concept explicitly groups these separate traditions under one interpretive umbrella.", sourceUrl:"#" },
+
+  { source:"sh-serpent", target:"na-greatserpent", verb:"links", date:"0500-01-01", tags:["native","egyptian"], docId:"REF-052", docTitle:"Serpent Wisdom-Keeper (parallel)", docDate:"0500-01-01", excerpt:"A serpent or dragon figure tied to hidden power appears independently in Native and Egyptian traditions.", sourceUrl:"#" },
+  { source:"sh-serpent", target:"eg-pantheon",     verb:"links", date:"0500-01-01", tags:["native","egyptian"], docId:"REF-053", docTitle:"Serpent Wisdom-Keeper (parallel)", docDate:"0500-01-01", excerpt:"Serpent figures such as Wadjet and Apophis play protective and chaos-related roles within the Egyptian pantheon.", sourceUrl:"#" },
+
+  { source:"sh-vision", target:"gr-oracle",      verb:"links", date:"0500-01-01", tags:["greek","native"], docId:"REF-054", docTitle:"Prophetic Vision & Channeling", docDate:"0500-01-01", excerpt:"Both traditions rely on altered states — trance or solitary fasting — to receive guidance from beyond the ordinary world.", sourceUrl:"#" },
+  { source:"sh-vision", target:"na-visionquest", verb:"links", date:"0500-01-01", tags:["greek","native"], docId:"REF-055", docTitle:"Prophetic Vision & Channeling", docDate:"0500-01-01", excerpt:"The vision quest is a personal, solitary parallel to the communal role of the Oracle.", sourceUrl:"#" },
+
+  { source:"sh-nonhuman", target:"ed-ancientastronaut", verb:"links", date:"1968-01-01", tags:["extradim","egyptian","greek","native"], docId:"REF-056", docTitle:"Non-Human Teachers of Civilization", docDate:"1968-01-01", excerpt:"This modern hypothesis reframes older myths of divine teachers as accounts of literal outside visitors.", sourceUrl:"#" },
+  { source:"sh-nonhuman", target:"eg-pantheon",         verb:"links", date:"1968-01-01", tags:["extradim","egyptian","greek","native"], docId:"REF-057", docTitle:"Non-Human Teachers of Civilization", docDate:"1968-01-01", excerpt:"Egyptian gods are often cited in this framing as civilizing teacher-figures.", sourceUrl:"#" },
+  { source:"sh-nonhuman", target:"gr-olympus",          verb:"links", date:"1968-01-01", tags:["extradim","egyptian","greek","native"], docId:"REF-058", docTitle:"Non-Human Teachers of Civilization", docDate:"1968-01-01", excerpt:"Greek myths of gods instructing early humans are read the same way in this comparative framing.", sourceUrl:"#" },
+  { source:"sh-nonhuman", target:"na-starknowledge",    verb:"links", date:"1968-01-01", tags:["extradim","egyptian","greek","native"], docId:"REF-059", docTitle:"Non-Human Teachers of Civilization", docDate:"1968-01-01", excerpt:"Star-knowledge oral traditions are likewise grouped into this comparative interpretation by modern writers.", sourceUrl:"#" }
 ];
 
 /* ========================================================================= */
 
 const TYPE_STYLE = {
-  person:       { color:"#c9a227", symbol:d3.symbolCircle,   size:220 },
-  organization: { color:"#4f8a86", symbol:d3.symbolSquare,   size:230 },
-  place:        { color:"#8c6fae", symbol:d3.symbolTriangle, size:230 },
-  document:     { color:"#b8452f", symbol:d3.symbolDiamond,  size:200 }
+  topic:  { color:"#c9a227", symbol:d3.symbolStar,    size:420 },
+  belief: { color:"#4f8a86", symbol:d3.symbolCircle,  size:160 },
+  shared: { color:"#5b8bb0", symbol:d3.symbolDiamond, size:280 }
 };
 function styleFor(type){
   return TYPE_STYLE[type] || { color:"#9aa0a6", symbol:d3.symbolCircle, size:200 };
@@ -325,7 +417,6 @@ let nodes = SAMPLE_NODES.map(d=>({...d}));
 let links = SAMPLE_LINKS.map(d=>({...d}));
 
 const nodeById = new Map(nodes.map(n=>[n.id,n]));
-// degree = how many relationships reference this node, drives node size
 nodes.forEach(n=> n.degree = links.filter(l=>l.source===n.id||l.target===n.id).length);
 
 const allTags = [...new Set(links.flatMap(l=>l.tags||[]))].sort();
@@ -340,13 +431,11 @@ document.getElementById("stat-nodes").textContent = nodes.length;
 document.getElementById("stat-links").textContent = links.length;
 document.getElementById("stat-docs").textContent = allDocs.size;
 
-/* ---- state ---- */
 const state = {
   search:"", enabledTypes:new Set(allTypes), enabledTags:new Set(),
   dateMin:minDate, dateMax:maxDate, selected:null
 };
 
-/* ---- build filter UI ---- */
 const typeFilterEl = document.getElementById("type-filters");
 allTypes.forEach(t=>{
   const row = document.createElement("label");
@@ -414,12 +503,10 @@ document.getElementById("reset-btn").addEventListener("click", ()=>{
   applyFilters();
 });
 
-/* ---- mobile drawer toggles ---- */
 document.getElementById("filters-toggle").addEventListener("click", ()=>{
   document.getElementById("filters").classList.toggle("open");
 });
 
-/* ---- graph setup ---- */
 const svg = d3.select("#graph");
 const g = svg.append("g");
 const linkLayer = g.append("g").attr("class","links");
@@ -435,10 +522,10 @@ function measure(){
 measure();
 
 const simulation = d3.forceSimulation(nodes)
-  .force("link", d3.forceLink(links).id(d=>d.id).distance(90).strength(0.55))
-  .force("charge", d3.forceManyBody().strength(-260))
+  .force("link", d3.forceLink(links).id(d=>d.id).distance(95).strength(0.5))
+  .force("charge", d3.forceManyBody().strength(-320))
   .force("center", d3.forceCenter(0,0))
-  .force("collide", d3.forceCollide(d=> 10 + Math.sqrt(d.degree||1)*4));
+  .force("collide", d3.forceCollide(d=> 12 + Math.sqrt(d.degree||1)*4));
 
 const linkSel = linkLayer.selectAll("line")
   .data(links)
@@ -457,7 +544,7 @@ const nodeSel = nodeLayer.selectAll("g.node")
 
 nodeSel.append("path")
   .attr("class","node-shape")
-  .attr("d", d=> d3.symbol().type(styleFor(d.type).symbol).size(styleFor(d.type).size + (d.degree||0)*12)())
+  .attr("d", d=> d3.symbol().type(styleFor(d.type).symbol).size(styleFor(d.type).size + (d.degree||0)*10)())
   .attr("fill", d=> styleFor(d.type).color);
 
 nodeSel.append("text")
@@ -481,7 +568,6 @@ window.addEventListener("resize", ()=>{
   simulation.force("center", d3.forceCenter(0,0));
 });
 
-/* ---- filtering (visual, doesn't restart layout) ---- */
 function passesFilters(node){
   if(!state.enabledTypes.has(node.type)) return false;
   if(state.search && !node.label.toLowerCase().includes(state.search)) return false;
@@ -496,14 +582,12 @@ function linkPasses(link){
   return passesFilters(s) && passesFilters(t);
 }
 function applyFilters(){
-  nodeSel.classed("hidden-node", d=> !passesFilters(d))
-         .style("display", d=> passesFilters(d) ? null : "none");
+  nodeSel.style("display", d=> passesFilters(d) ? null : "none");
   linkSel.style("display", d=> linkPasses(d) ? null : "none");
   if(state.selected) renderTimeline(state.selected);
 }
 applyFilters();
 
-/* ---- selection & timeline ---- */
 function selectNode(d){
   state.selected = d;
   nodeSel.classed("selected", n=> n.id===d.id);
@@ -548,7 +632,6 @@ function closeDetail(){
 }
 document.getElementById("detail-close").addEventListener("click", closeDetail);
 
-/* ---- source document modal ---- */
 function openDoc(l){
   document.getElementById("modal-docid").textContent = l.docId;
   document.getElementById("modal-title").textContent = l.docTitle;
